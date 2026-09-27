@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Friends Included finance records and approval dashboard.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d3350'/%3E%3Cpath d='M18 42V22h28v20H18zm5-15h18m-18 7h12' stroke='%23f4b942' stroke-width='4' fill='none'/%3E%3C/svg%3E">
+  <title>Friends Included Finance</title><link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header><div><p class="eyebrow">FRIENDS INCLUDED LTD</p><h1>Finance desk</h1></div><div class="role"><label for="role">Demonstration role</label><select id="role"></select><span id="mode" class="badge"></span></div></header>
+  <main>
+    <section class="intro"><div><h2>Wedding guests, properly accounted for</h2><p>Enter records, make decisions, and see the financial result in one place.</p></div><button id="seed" class="secondary">Load completed test data</button></section>
+    <nav aria-label="Finance views"><button class="tab active" data-view="dashboard">Dashboard</button><button class="tab" data-view="entry">New transaction</button><button class="tab" data-view="decisions">Manager decisions <span id="queue" class="count">0</span></button><button class="tab" data-view="records">Records</button><button class="tab" data-view="setup">Manager setup</button></nav>
+    <p id="notice" role="status" aria-live="polite"></p>
+    <section id="dashboard" class="view active"></section>
+    <section id="entry" class="view"></section>
+    <section id="decisions" class="view"></section>
+    <section id="records" class="view"></section>
+    <section id="setup" class="view"></section>
+  </main>
+  <template id="sale-form"><form class="form" data-type="sale"><h2>Record a sale</h2><div class="form-grid"><label>Reference<input name="reference" placeholder="S06" required></label><label>Customer<input name="customer" required></label><label>Project<select name="project"><option>A — Respectable Relatives</option><option>B — Drunk University Friends</option></select></label><label>Amount €<input name="amount" type="number" min="0.01" step="0.01" required></label><label class="wide">Description<input name="description" required></label></div><fieldset><legend>Proposed share of the 10% commission pool</legend><div class="split"><label>Richard %<input name="r" type="number" min="0" max="100" value="0" required></label><label>Anastasia %<input name="a" type="number" min="0" max="100" value="0" required></label><label>Jean-Claude %<input name="j" type="number" min="0" max="100" value="0" required></label></div></fieldset><button>Save sale for approval</button></form></template>
+  <template id="expense-form"><form class="form" data-type="expense"><h2>Record an expense</h2><div class="form-grid"><label>Reference<input name="reference" placeholder="E08" required></label><label>Amount €<input name="amount" type="number" min="0.01" step="0.01" required></label><label>Category<select name="category"><option>Materials</option><option>Travel</option><option>Other</option></select></label><label>Proposed allocation<select name="allocation"><option value="A">A — Respectable Relatives</option><option value="B">B — Drunk University Friends</option><option>Company overhead</option></select></label><label class="wide">Description<input name="description" required></label></div><button>Save expense</button></form></template>
+  <script type="module" src="/app.js"></script>
+</body></html>
