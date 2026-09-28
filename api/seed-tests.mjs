@@ -8,12 +8,17 @@ export default async function handler(req, res) {
     if (!actor || actor.role !== 'manager') return reply(res, 403, { error: 'Only Svetlana can load the coursework test data.' });
     if (!configured()) return reply(res, 400, { error: 'Connect Supabase before loading persistent test data.' });
 
-    const existing = new Set((await getTransactions()).map((transaction) => transaction.reference.toLowerCase()));
+    const existing = new Map((await getTransactions()).map((transaction) => [transaction.reference.toLowerCase(), transaction]));
     const inserted = [];
+    const alreadyPresent = [];
     const sheetFailures = [];
 
     for (const fixture of completedTests) {
-      if (existing.has(fixture.reference.toLowerCase())) continue;
+      const key = fixture.reference.toLowerCase();
+      if (existing.has(key)) {
+        alreadyPresent.push(fixture.reference);
+        continue;
+      }
       const transaction = {
         ...fixture,
         source: 'website',
@@ -21,7 +26,18 @@ export default async function handler(req, res) {
         payload: { ...fixture.payload, courseworkFixture: true },
         submittedAt: new Date().toISOString()
       };
-      await insertTransaction(transaction);
+      try {
+        await insertTransaction(transaction);
+      } catch (error) {
+        // A double-click or two reviewer sessions can race. A primary-key
+        // collision means another request already wrote this safe fixture.
+        if (/23505|duplicate key/i.test(error.message)) {
+          alreadyPresent.push(transaction.reference);
+          continue;
+        }
+        throw error;
+      }
+      existing.set(key, transaction);
       inserted.push(transaction.reference);
       try {
         const sheet = await syncSheet(transaction);
@@ -33,7 +49,7 @@ export default async function handler(req, res) {
     }
 
     const message = inserted.length
-      ? `Loaded ${inserted.length} missing coursework records: ${inserted.join(', ')}.`
+      ? `Loaded ${inserted.length} missing coursework records: ${inserted.join(', ')}.${alreadyPresent.length ? ` Already present: ${alreadyPresent.join(', ')}.` : ''}`
       : 'All required coursework records are already loaded; nothing was duplicated.';
     return reply(res, 200, { confirmation: sheetFailures.length ? `${message} Google Sheets needs a retry for: ${sheetFailures.join(', ')}.` : message });
   } catch (error) {
