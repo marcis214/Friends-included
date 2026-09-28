@@ -16,6 +16,13 @@ export default async function handler(req, res) {
     for (const fixture of completedTests) {
       const key = fixture.reference.toLowerCase();
       if (existing.has(key)) {
+        const saved = existing.get(key);
+        // Earlier versions could insert a required reference before the
+        // coursework marker existed. Marking it is safe: finance values,
+        // approval status, and the record itself remain unchanged.
+        if (saved?.payload?.courseworkFixture !== true) {
+          await updateTransaction(saved.reference, { payload: { ...saved.payload, courseworkFixture: true } });
+        }
         alreadyPresent.push(fixture.reference);
         continue;
       }
