@@ -28,6 +28,12 @@ export const completedTests = [
   e('E07', 'expense', 'kevin', { description: 'Emergency replacement clothing', category: 'Materials', amount: 140, proposedAllocation: 'A' }, 'awaiting_allocation')
 ];
 
+// These totals are a fixed reference check from the original control example.
+// They are deliberately not inserted into the live ledger or combined with the
+// coursework fixture data.
+export const originalControlTotals = { income: 1500, commissions: 150, result: 1350 };
+export const courseworkFixtureReferences = completedTests.map((transaction) => transaction.reference);
+
 export const cents = (n) => Math.round(Number(n) * 100) / 100;
 export const money = (n) => new Intl.NumberFormat('en-IE', { style: 'currency', currency: 'EUR' }).format(cents(n));
 export const splitValid = (split) => Array.isArray(split) && split.length === 3 && split.every((n) => Number.isFinite(Number(n)) && Number(n) >= 0 && Number(n) <= 100) && cents(split.reduce((a, n) => a + Number(n), 0)) === 100;
