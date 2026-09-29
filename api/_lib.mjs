@@ -137,7 +137,7 @@ export async function googleToken() {
   const response = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion: `${header}.${claim}.${signature}` }) });
   if (!response.ok) throw new Error(`Google auth: ${await response.text()}`); return (await response.json()).access_token;
 }
-export async function syncSheet(tx) {
+export async function syncSheet(tx, previousReference = null) {
   if (!process.env.GOOGLE_SHEET_ID || !process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || !process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY) return { status: 'not_configured' };
   const token = await googleToken(), tab = tx.type === 'sale' ? 'Sales' : 'Expenses';
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
@@ -146,7 +146,8 @@ export async function syncSheet(tx) {
     : [tx.reference, tx.submittedAt, tx.submittedBy, tx.payload.description, tx.payload.category, tx.payload.amount, tx.payload.proposedAllocation, tx.decision?.finalAllocation || '', tx.status];
   const base = `https://sheets.googleapis.com/v4/spreadsheets/${process.env.GOOGLE_SHEET_ID}/values/${encodeURIComponent(tab + '!A:A')}`;
   const existing = await fetch(base, { headers }).then(async (r) => { if (!r.ok) throw new Error(await r.text()); return r.json(); });
-  const index = (existing.values || []).findIndex((r) => r[0] === tx.reference);
+  const lookupReference = previousReference || tx.reference;
+  const index = (existing.values || []).findIndex((r) => r[0] === lookupReference);
   const range = index >= 0 ? `${tab}!A${index + 1}` : `${tab}!A:A`;
   const url = index >= 0 ? `https://sheets.googleapis.com/v4/spreadsheets/${process.env.GOOGLE_SHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED` : `https://sheets.googleapis.com/v4/spreadsheets/${process.env.GOOGLE_SHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED`;
   const response = await fetch(url, { method: index >= 0 ? 'PUT' : 'POST', headers, body: JSON.stringify({ values: [row] }) });
