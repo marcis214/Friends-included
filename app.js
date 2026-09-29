@@ -2,7 +2,9 @@ const $ = (selector) => document.querySelector(selector);
 const views = [...document.querySelectorAll('.view')];
 const role = $('#role');
 let state = { mode: 'loading', employees: [], transactions: [], financials: null, testing: null, links: {} };
-let selected = localStorage.getItem('friends-role') || 'svetlana';
+// A role must be chosen deliberately. This avoids treating every new browser as
+// Svetlana and lets the server return only the selected fictional employee's data.
+let selected = '';
 
 const euro = (value) => new Intl.NumberFormat('en-IE', { style: 'currency', currency: 'EUR' }).format(Number(value || 0));
 const employee = () => state.employees.find((item) => item.id === selected);
@@ -13,11 +15,12 @@ const link = (url, label) => url ? `<a class="access-link" href="${url}" target=
 
 async function load() {
   try {
-    const response = await fetch('/api/dashboard');
+    const suffix = selected ? `?actorId=${encodeURIComponent(selected)}` : '';
+    const response = await fetch(`/api/dashboard${suffix}`);
     if (!response.ok) throw new Error('Could not load records');
     state = await response.json();
     $('#mode').textContent = state.mode === 'live' ? 'Live records' : 'Demo preview';
-    role.innerHTML = state.employees.map((item) => `<option value="${item.id}">${item.name}</option>`).join('');
+    role.innerHTML = `<option value="">Choose a fictional employee</option>${state.employees.map((item) => `<option value="${item.id}">${item.name}</option>`).join('')}`;
     role.value = selected;
     render();
   } catch (error) { notice(error.message, true); }
@@ -37,7 +40,7 @@ function lines(items) { return `<ul class="metric-list">${items.map(([label, val
 
 function renderDashboard() {
   const f = state.financials, t = state.testing;
-  if (!f) return;
+  if (!f) { $('#dashboard').innerHTML = `<p class="empty">${selected ? 'This fictional employee can see only their own records. Company totals and manager information are available to Svetlana.' : 'Choose a fictional employee above to see the records available to that role.'}</p>`; return; }
   const missing = t?.missingReferences || [];
   $('#dashboard').innerHTML = `
     <div class="cards"><article class="card"><h3>Respectable Relatives</h3><div class="amount">${euro(f.projects.A.result)}</div><p class="sub">Project A result</p></article><article class="card"><h3>Drunk University Friends</h3><div class="amount">${euro(f.projects.B.result)}</div><p class="sub">Project B result</p></article><article class="card"><h3>Company result</h3><div class="amount">${euro(f.company.result)}</div><p class="sub">All approved sales less all expenses</p></article></div>
@@ -83,7 +86,8 @@ function renderDecisions() {
 }
 
 function renderRecords() {
-  const visible = state.transactions.filter((transaction) => isManager() || transaction.submittedBy === selected);
+  // This list is already scoped on the server; no hidden rows were sent to an employee browser.
+  const visible = state.transactions;
   $('#records').innerHTML = `<div class="records">${visible.map((transaction) => {
     const detail = transaction.type === 'sale' ? `${transaction.payload.customer} · Project ${transaction.payload.project} · ${transaction.payload.description}` : `${transaction.payload.category} · proposed ${transaction.payload.proposedAllocation} · ${transaction.payload.description}`;
     const fixture = transaction.payload.courseworkFixture ? '<span class="fixture-tag">Coursework fixture</span>' : transaction.payload.practiceRecord ? '<span class="practice-tag">Practice record</span>' : '';
@@ -97,14 +101,21 @@ function renderRecords() {
 function renderSetup() {
   if (!isManager()) { $('#setup').innerHTML = '<p class="empty">Only Svetlana can link a Telegram account or load coursework tests.</p>'; return; }
   const missing = state.testing?.missingReferences || [];
-  $('#setup').innerHTML = `<div class="manager-grid"><article class="panel"><h2>Manager test controls</h2><p>Load the required Test 1 + Test 2 sales and expenses once. Existing references are never replaced or duplicated.</p><p class="setup-note">S05 stays pending and E07 stays awaiting allocation for the required final test. If an old practice record uses a required reference, it is safely moved to a labelled P-number and the original record is restored.</p><button id="load-tests">${missing.length ? `Load or repair ${missing.length} coursework records` : 'Check or repair coursework records'}</button></article><article class="panel"><h2>Fictional employee link</h2><p class="setup-note">Link a Telegram user and chat ID to one fictional employee. No token or credential is displayed here.</p><form class="form compact-form" id="link-form"><div class="form-grid"><label>Employee<select name="employeeId">${state.employees.filter((item) => item.id !== 'svetlana').map((item) => `<option value="${item.id}">${item.name}</option>`).join('')}</select></label><label>Telegram user ID<input name="telegramUserId" required></label><label>Telegram chat ID<input name="telegramChatId" required></label></div><button>Save link</button></form></article></div>`;
+  $('#setup').innerHTML = `<div class="manager-grid"><article class="panel"><h2>Manager test controls</h2><p>Load the required Test 1 + Test 2 sales and expenses once. Existing references are never replaced or duplicated.</p><p class="setup-note">S05 stays pending and E07 stays awaiting allocation for the required final test. If an old practice record uses a required reference, it is safely moved to a labelled P-number and the original record is restored.</p><button id="load-tests">${missing.length ? `Load or repair ${missing.length} coursework records` : 'Check or repair coursework records'}</button></article><article class="panel"><h2>Fictional employee link</h2><p class="setup-note">Link a Telegram user and chat ID to one fictional employee. No token or credential is displayed here.</p><form class="form compact-form" id="link-form"><div class="form-grid"><label>Employee<select name="employeeId">${state.employees.filter((item) => item.id !== 'svetlana').map((item) => `<option value="${item.id}">${item.name}</option>`).join('')}</select></label><label>Telegram user ID<input name="telegramUserId" required></label><label>Telegram chat ID<input name="telegramChatId" required></label></div><div class="actions"><button type="submit">Save link</button><button class="secondary" type="button" id="reassign-link">Move/reassign test binding</button><button class="secondary" type="button" id="unlink-link">Unlink selected employee</button></div><p class="setup-note">Move/reassign safely removes this fictional test binding from another employee first. Existing transaction notification chats remain stored on their original records.</p></form></article></div>`;
   $('#load-tests').addEventListener('click', () => post('/api/seed-tests', { actorId: selected }));
-  $('#link-form').addEventListener('submit', (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); post('/api/manager-setup', { actorId: selected, employeeId: form.get('employeeId'), telegramUserId: form.get('telegramUserId'), telegramChatId: form.get('telegramChatId') }); });
+  const linkData = (action) => { const form = new FormData($('#link-form')); return { actorId: selected, employeeId: form.get('employeeId'), telegramUserId: form.get('telegramUserId'), telegramChatId: form.get('telegramChatId'), action }; };
+  $('#link-form').addEventListener('submit', (event) => { event.preventDefault(); post('/api/manager-setup', linkData('link')); });
+  $('#reassign-link').addEventListener('click', () => {
+    const form = $('#link-form');
+    if (!form.reportValidity()) return;
+    post('/api/manager-setup', linkData('reassign'));
+  });
+  $('#unlink-link').addEventListener('click', () => post('/api/manager-setup', linkData('unlink')));
 }
 
 function renderTesting() {
   const links = state.links || {};
-  $('#testing').innerHTML = `<div class="guide-grid"><article class="panel"><p class="section-kicker">REVIEWER ACCESS</p><h2>Working links</h2><p>${link(links.github, 'Open GitHub source')}</p><p>${link(links.googleSheet, 'Open Google Sheets ledger')}</p><p>${link(links.telegram, 'Open Telegram bot')}</p><p class="setup-note">The Sheets link must be shared as Viewer. The bot link is intentionally public, but bot tokens and service-account credentials remain server-only.</p></article><article class="panel"><p class="section-kicker">SHORT TEST PLAN</p><h2>How to check this submission</h2><ol class="guide-list"><li>Choose Svetlana, open <strong>Manager setup</strong>, and check or repair the coursework fixture. It keeps S05 pending and E07 awaiting allocation.</li><li>Use <strong>Records</strong> to confirm S01–S05 and E01–E07 are present. Coursework and labelled practice records are separate.</li><li>For manager testing, create a separate labelled reviewer sale or expense; do not approve S05 or allocate E07.</li><li>Use the Telegram link, send <code>/start</code>, link a fictional employee on this page, then submit <code>/sale S92855 | Reviewer Test | A | Sale from Telegram | 100 | 50 | 30 | 20</code>. The command works with or without spaces around <code>|</code>.</li></ol></article></div>`;
+  $('#testing').innerHTML = `<div class="guide-grid"><article class="panel"><p class="section-kicker">REVIEWER ACCESS</p><h2>Working links</h2><p>${link(links.github, 'Open GitHub source')}</p><p>${link(links.googleSheet, 'Open Google Sheets ledger')}</p><p>${link(links.telegram, 'Open Telegram bot')}</p><p class="setup-note">The Sheets link must be shared as Viewer. The bot link is intentionally public, but bot tokens and service-account credentials remain server-only.</p></article><article class="panel"><p class="section-kicker">SHORT TEST PLAN</p><h2>How to check this submission</h2><ol class="guide-list"><li>Choose Svetlana, open <strong>Manager setup</strong>, and check or repair the coursework fixture. It keeps S05 pending and E07 awaiting allocation.</li><li>Use <strong>Records</strong> to confirm S01–S05 and E01–E07 are present. Coursework and labelled practice records are separate.</li><li>For manager testing, create a separate labelled reviewer sale or expense; do not approve S05 or allocate E07.</li><li>Use the Telegram link, send <code>/start</code>, link a fictional employee on this page, then submit <code>/sale S92855 | Reviewer Test | A | Sale from Telegram | 100 | 50 | 30 | 20</code>. To test Kevin after Richard, select Kevin in Manager setup and use <strong>Move/reassign test binding</strong> before sending an expense. The command works with or without spaces around <code>|</code>.</li></ol></article></div>`;
 }
 
 async function post(url, body) {
@@ -117,7 +128,7 @@ async function post(url, body) {
   } catch (error) { notice(error.message, true); }
 }
 
-role.addEventListener('change', () => { selected = role.value; localStorage.setItem('friends-role', selected); render(); });
+role.addEventListener('change', () => { selected = role.value; load(); });
 document.querySelectorAll('.tab').forEach((tab) => tab.addEventListener('click', () => { document.querySelectorAll('.tab').forEach((item) => item.classList.toggle('active', item === tab)); views.forEach((view) => view.classList.toggle('active', view.id === tab.dataset.view)); }));
 $('#seed').addEventListener('click', () => document.querySelector('[data-view="testing"]').click());
 load();
